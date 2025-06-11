@@ -38,8 +38,8 @@ export default function Home() {
       if (!imageUrl.startsWith('data:')) {
         URL.revokeObjectURL(downloadUrl);
       }
-    } catch (error) {
-      console.error('Error downloading image:', error);
+    } catch (downloadError) {
+      console.error('Error downloading image:', downloadError);
       alert('Failed to download image');
     }
   };
