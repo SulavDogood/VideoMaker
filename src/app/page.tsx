@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
@@ -13,7 +14,7 @@ export default function Home() {
 
     try {
       let downloadUrl: string;
-      let filename = "ai-generated-image.webp";
+      const filename = "ai-generated-image.webp";
 
       if (imageUrl.startsWith('data:')) {
         // Handle base64 data URL
@@ -68,7 +69,7 @@ export default function Home() {
       } else {
         setResult(`Error: ${data.error || 'Failed to generate image'}`);
       }
-    } catch (error) {
+    } catch {
       setResult("Error generating image. Please try again.");
     } finally {
       setIsLoading(false);
@@ -132,10 +133,13 @@ export default function Home() {
               {imageUrl && (
                 <div className="mt-4 space-y-4">
                   <div className="flex justify-center">
-                    <img 
+                    <Image 
                       src={imageUrl} 
                       alt="Generated image" 
+                      width={800}
+                      height={600}
                       className="max-w-full h-auto rounded-lg shadow-lg"
+                      unoptimized={true}
                     />
                   </div>
                   <div className="flex justify-center">
