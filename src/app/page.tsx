@@ -1,76 +1,115 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Image from "next/image";
 
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const downloadImage = async () => {
-    if (!imageUrl) return;
+  const convertHeicToJpeg = async (file: File): Promise<File> => {
+    // For now, we'll just show an error for HEIC files
+    throw new Error("HEIC format is not supported. Please convert your image to JPEG or PNG format.");
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    const fileType = file.type.toLowerCase();
+    if (fileType === 'image/heic' || fileType === 'image/heif') {
+      try {
+        const convertedFile = await convertHeicToJpeg(file);
+        handleFile(convertedFile);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Error processing image");
+        return;
+      }
+    } else if (!['image/jpeg', 'image/png', 'image/webp'].includes(fileType)) {
+      alert("Please upload a JPEG, PNG, or WebP image");
+      return;
+    } else {
+      handleFile(file);
+    }
+  };
+
+  const handleFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setUploadedImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const downloadVideo = async () => {
+    if (!videoUrl) return;
 
     try {
-      let downloadUrl: string;
-      const filename = "ai-generated-image.webp";
+      const response = await fetch(videoUrl);
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
 
-      if (imageUrl.startsWith('data:')) {
-        // Handle base64 data URL
-        downloadUrl = imageUrl;
-      } else {
-        // Handle regular URL - fetch and convert to blob
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        downloadUrl = URL.createObjectURL(blob);
-      }
-
-      // Create download link
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = filename;
+      link.download = "generated-video.mp4";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Clean up object URL if created
-      if (!imageUrl.startsWith('data:')) {
-        URL.revokeObjectURL(downloadUrl);
-      }
+      URL.revokeObjectURL(downloadUrl);
     } catch (downloadError) {
-      console.error('Error downloading image:', downloadError);
-      alert('Failed to download image');
+      console.error('Error downloading video:', downloadError);
+      alert('Failed to download video');
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || !uploadedImage) return;
 
     setIsLoading(true);
     setResult("");
-    setImageUrl("");
+    setVideoUrl("");
 
     try {
+      // Ensure the image is in the correct format
+      const imageData = uploadedImage.startsWith('data:') 
+        ? uploadedImage 
+        : `data:image/jpeg;base64,${uploadedImage}`;
+
+      console.log("Sending image data:", imageData.substring(0, 50) + "..."); // Log first 50 chars
+
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ 
+          prompt,
+          image: imageData 
+        }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setImageUrl(data.imageUrl);
-        setResult(`Image generated successfully for: "${prompt}"`);
+        setVideoUrl(data.videoUrl);
+        setResult(`Video generated successfully for: "${prompt}"`);
       } else {
-        setResult(`Error: ${data.error || 'Failed to generate image'}`);
+        setResult(`Error: ${data.error || 'Failed to generate video'}`);
       }
-    } catch {
-      setResult("Error generating image. Please try again.");
+    } catch (error) {
+      console.error("Error:", error);
+      setResult("Error generating video. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -82,16 +121,55 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            AI Media Generator
+            AI Video Generator
           </h1>
           <p className="text-lg text-gray-600">
-            Enter your prompt and let AI create amazing content for you
+            Upload an image and enter your prompt to create an amazing video
           </p>
         </div>
 
-        {/* Prompt Input Section */}
+        {/* Image Upload and Prompt Input Section */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Image Upload */}
+            <div className="space-y-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Upload Base Image
+              </label>
+              <div 
+                onClick={triggerFileInput}
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors"
+              >
+                {uploadedImage ? (
+                  <div className="relative w-full h-48">
+                    <Image
+                      src={uploadedImage}
+                      alt="Uploaded image"
+                      fill
+                      className="object-contain rounded-lg"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-sm text-gray-500">
+                      Click to upload an image
+                    </p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
+            </div>
+
+            {/* Prompt Input */}
             <div>
               <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 mb-2">
                 Your Prompt
@@ -108,7 +186,7 @@ export default function Home() {
             
             <button
               type="submit"
-              disabled={isLoading || !prompt.trim()}
+              disabled={isLoading || !prompt.trim() || !uploadedImage}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2"
             >
               {isLoading ? (
@@ -117,7 +195,7 @@ export default function Home() {
                   <span>Generating...</span>
                 </>
               ) : (
-                <span>Generate</span>
+                <span>Generate Video</span>
               )}
             </button>
           </form>
@@ -130,31 +208,47 @@ export default function Home() {
           {result ? (
             <div className="bg-gray-50 rounded-lg p-6 border-l-4 border-blue-500">
               <p className="text-gray-700 whitespace-pre-wrap mb-4">{result}</p>
-              {imageUrl && (
-                <div className="mt-4 space-y-4">
-                  <div className="flex justify-center">
-                    <Image 
-                      src={imageUrl} 
-                      alt="Generated image" 
-                      width={800}
-                      height={600}
-                      className="max-w-full h-auto rounded-lg shadow-lg"
-                      unoptimized={true}
+              
+              {/* Display both uploaded image and generated video */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Uploaded Image */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-gray-700">Uploaded Image</h3>
+                  <div className="relative w-full aspect-video">
+                    <Image
+                      src={uploadedImage || ''}
+                      alt="Uploaded image"
+                      fill
+                      className="object-contain rounded-lg"
                     />
                   </div>
-                  <div className="flex justify-center">
-                    <button
-                      onClick={downloadImage}
-                      className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center space-x-2 shadow-lg"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span>Download Image</span>
-                    </button>
-                  </div>
                 </div>
-              )}
+
+                {/* Generated Video */}
+                {videoUrl && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium text-gray-700">Generated Video</h3>
+                    <div className="relative w-full aspect-video">
+                      <video 
+                        src={videoUrl} 
+                        controls
+                        className="w-full h-full rounded-lg"
+                      />
+                    </div>
+                    <div className="flex justify-center">
+                      <button
+                        onClick={downloadVideo}
+                        className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center space-x-2 shadow-lg"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Download Video</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="text-center py-12">
@@ -164,7 +258,7 @@ export default function Home() {
                 </svg>
               </div>
               <p className="text-gray-500 text-lg">
-                Enter a prompt above and click Generate to see results here
+                Upload an image and enter a prompt above to generate a video
               </p>
             </div>
           )}
