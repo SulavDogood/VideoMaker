@@ -11,7 +11,7 @@ export default function Home() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const convertHeicToJpeg = async (file: File): Promise<File> => {
+  const convertHeicToJpeg = async (_file: File): Promise<File> => {
     // For now, we'll just show an error for HEIC files
     throw new Error("HEIC format is not supported. Please convert your image to JPEG or PNG format.");
   };
