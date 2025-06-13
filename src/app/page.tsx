@@ -6,7 +6,6 @@ import Image from "next/image";
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -25,8 +24,8 @@ export default function Home() {
     const fileType = file.type.toLowerCase();
     if (fileType === 'image/heic' || fileType === 'image/heif') {
       try {
-        const convertedFile = await convertHeicToJpeg(file);
-        handleFile(convertedFile);
+        await convertHeicToJpeg(file);
+        handleFile(file);
       } catch (error) {
         alert(error instanceof Error ? error.message : "Error processing image");
         return;
