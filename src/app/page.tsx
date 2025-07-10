@@ -157,13 +157,24 @@ export default function Home() {
 
       const data = await response.json();
 
-      if (data.success && data.predictionId) {
-        setPredictionId(data.predictionId);
-        setStatus(data.status);
-        setResult(`Video generation started for: "${prompt}"`);
-        
-        // Start polling for status
-        startPolling(data.predictionId);
+      if (data.success) {
+        if (data.predictionId) {
+          // Production mode: Use polling
+          setPredictionId(data.predictionId);
+          setStatus(data.status);
+          setResult(`Video generation started for: "${prompt}"`);
+          
+          // Start polling for status
+          startPolling(data.predictionId);
+        } else if (data.videoUrl) {
+          // Development mode: Direct result
+          setVideoUrl(data.videoUrl);
+          setResult(`Video generated successfully for: "${prompt}"`);
+          setIsLoading(false);
+        } else {
+          setResult(`Error: Unexpected response format`);
+          setIsLoading(false);
+        }
       } else {
         setResult(`Error: ${data.error || 'Failed to start video generation'}`);
         setIsLoading(false);
