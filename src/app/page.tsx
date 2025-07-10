@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 
 export default function Home() {
@@ -9,7 +9,19 @@ export default function Home() {
   const [videoUrl, setVideoUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [predictionId, setPredictionId] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
 
   const convertHeicToJpeg = async (): Promise<File> => {
     // For now, we'll just show an error for HEIC files
@@ -71,6 +83,50 @@ export default function Home() {
     }
   };
 
+  const startPolling = (id: string) => {
+    // Clear any existing polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Start polling every 2 seconds
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/status?id=${id}`);
+        const data = await response.json();
+
+        if (data.error) {
+          console.error("Status check error:", data.error);
+          return;
+        }
+
+        setStatus(data.status);
+
+        if (data.status === "succeeded" && data.output) {
+          // Video generation completed
+          setVideoUrl(data.output);
+          setResult(`Video generated successfully for: "${prompt}"`);
+          setIsLoading(false);
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+        } else if (data.status === "failed") {
+          // Video generation failed
+          setResult(`Error: ${data.error || 'Video generation failed'}`);
+          setIsLoading(false);
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+        }
+        // If status is "starting" or "processing", continue polling
+      } catch (error) {
+        console.error("Error checking status:", error);
+      }
+    }, 2000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || !uploadedImage) return;
@@ -78,6 +134,7 @@ export default function Home() {
     setIsLoading(true);
     setResult("");
     setVideoUrl("");
+    setStatus("starting");
 
     try {
       // Ensure the image is in the correct format
@@ -85,7 +142,7 @@ export default function Home() {
         ? uploadedImage 
         : `data:image/jpeg;base64,${uploadedImage}`;
 
-      console.log("Sending image data:", imageData.substring(0, 50) + "..."); // Log first 50 chars
+      console.log("Sending image data:", imageData.substring(0, 50) + "...");
 
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -100,17 +157,36 @@ export default function Home() {
 
       const data = await response.json();
 
-      if (data.success) {
-        setVideoUrl(data.videoUrl);
-        setResult(`Video generated successfully for: "${prompt}"`);
+      if (data.success && data.predictionId) {
+        setPredictionId(data.predictionId);
+        setStatus(data.status);
+        setResult(`Video generation started for: "${prompt}"`);
+        
+        // Start polling for status
+        startPolling(data.predictionId);
       } else {
-        setResult(`Error: ${data.error || 'Failed to generate video'}`);
+        setResult(`Error: ${data.error || 'Failed to start video generation'}`);
+        setIsLoading(false);
       }
     } catch (error) {
       console.error("Error:", error);
-      setResult("Error generating video. Please try again.");
-    } finally {
+      setResult("Error starting video generation. Please try again.");
       setIsLoading(false);
+    }
+  };
+
+  const getStatusMessage = () => {
+    switch (status) {
+      case "starting":
+        return "Starting video generation...";
+      case "processing":
+        return "Processing video (this may take 2-5 minutes)...";
+      case "succeeded":
+        return "Video generation completed!";
+      case "failed":
+        return "Video generation failed";
+      default:
+        return "Initializing...";
     }
   };
 
@@ -191,7 +267,7 @@ export default function Home() {
               {isLoading ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Generating...</span>
+                  <span>{getStatusMessage()}</span>
                 </>
               ) : (
                 <span>Generate Video</span>
