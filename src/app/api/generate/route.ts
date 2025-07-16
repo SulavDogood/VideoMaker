@@ -6,6 +6,30 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
+async function handleReadableStream(stream: ReadableStream): Promise<string> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  
+  // Combine all chunks into a single buffer
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const buffer = new Uint8Array(totalLength);
+  let offset = 0;
+  
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.length;
+  }
+  
+  // Convert buffer to base64
+  return Buffer.from(buffer).toString('base64');
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Get the prompt and image from the request body
@@ -96,6 +120,10 @@ export async function POST(request: NextRequest) {
         videoUrl = output;
       } else if (Array.isArray(output) && output.length > 0) {
         videoUrl = output[0];
+      } else if (output instanceof ReadableStream) {
+        // Handle ReadableStream response
+        const base64Data = await handleReadableStream(output);
+        videoUrl = `data:video/mp4;base64,${base64Data}`;
       } else {
         console.error("Unexpected output format:", output);
         return NextResponse.json({ 
