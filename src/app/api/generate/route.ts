@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       // Development: Use synchronous approach (no webhooks)
       console.log("Development mode: Using synchronous approach");
       
-      const output: any = await replicate.run(
+      const output: unknown = await replicate.run(
         "wavespeedai/wan-2.1-i2v-720p",
         {
           input: {
@@ -129,10 +129,10 @@ export async function POST(request: NextRequest) {
       if (typeof output === 'string') {
         console.log("String output received, length:", (output as string).length);
         videoUrl = output;
-      } else if (Array.isArray(output) && (output as any[]).length > 0) {
-        console.log("Array output received, first item:", typeof (output as any[])[0]);
-        videoUrl = (output as any[])[0];
-      } else if (output && typeof output === 'object' && 'constructor' in output && (output as any).constructor.name === 'FileOutput') {
+      } else if (Array.isArray(output) && (output as unknown[]).length > 0) {
+        console.log("Array output received, first item:", typeof (output as unknown[])[0]);
+        videoUrl = (output as unknown[])[0] as string;
+      } else if (output && typeof output === 'object' && 'constructor' in output && (output as { constructor: { name: string } }).constructor.name === 'FileOutput') {
         console.log("FileOutput detected, treating as ReadableStream...");
         // Handle FileOutput as ReadableStream
         videoUrl = await handleReadableStream(output as unknown as ReadableStream);
