@@ -58,10 +58,23 @@ export default function Home() {
   const downloadVideo = async () => {
     if (!videoUrl) return;
 
+    console.log("Downloading video, URL type:", videoUrl.startsWith('data:') ? 'base64' : 'regular URL');
+    console.log("Video URL length:", videoUrl.length);
+
     try {
-      const response = await fetch(videoUrl);
-      const blob = await response.blob();
-      const downloadUrl = URL.createObjectURL(blob);
+      let downloadUrl: string;
+      
+      if (videoUrl.startsWith('data:')) {
+        // Handle base64 data URL
+        console.log("Using base64 data URL for download");
+        downloadUrl = videoUrl;
+      } else {
+        // Handle regular URL
+        console.log("Fetching regular URL for download");
+        const response = await fetch(videoUrl);
+        const blob = await response.blob();
+        downloadUrl = URL.createObjectURL(blob);
+      }
 
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -69,7 +82,13 @@ export default function Home() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(downloadUrl);
+      
+      // Only revoke if we created an object URL
+      if (!videoUrl.startsWith('data:')) {
+        URL.revokeObjectURL(downloadUrl);
+      }
+      
+      console.log("Download initiated successfully");
     } catch (downloadError) {
       console.error('Error downloading video:', downloadError);
       alert('Failed to download video');
