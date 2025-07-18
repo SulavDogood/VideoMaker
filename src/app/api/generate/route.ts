@@ -84,6 +84,9 @@ export async function POST(request: NextRequest) {
     console.log("Generation complete:", output);
     console.log("Output type:", typeof output);
     console.log("Output constructor:", output?.constructor?.name);
+    console.log("Output constructor name length:", output?.constructor?.name?.length);
+    console.log("Is ReadableStream:", output instanceof ReadableStream);
+    console.log("Has constructor property:", output && typeof output === 'object' && 'constructor' in output);
     
     // Handle different types of responses
     let videoUrl: string | undefined;
@@ -98,6 +101,13 @@ export async function POST(request: NextRequest) {
       console.log("FileOutput detected, treating as ReadableStream...");
       // Handle FileOutput as ReadableStream
       videoUrl = await handleReadableStream(output as unknown as ReadableStream);
+    } else if (output && typeof output === 'object' && 'constructor' in output && (output as { constructor: { name: string } }).constructor.name === 'i') {
+      console.log("FileOutput (truncated name) detected, treating as ReadableStream...");
+      // Handle FileOutput as ReadableStream (when constructor name is truncated)
+      videoUrl = await handleReadableStream(output as unknown as ReadableStream);
+    } else if (output && typeof output === 'object' && output instanceof ReadableStream) {
+      console.log("Direct ReadableStream detected...");
+      videoUrl = await handleReadableStream(output);
     } else {
       console.error("Unexpected output format:", output);
       console.error("Output keys:", Object.keys(output || {}));
