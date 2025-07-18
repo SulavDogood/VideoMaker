@@ -127,12 +127,12 @@ export async function POST(request: NextRequest) {
       let videoUrl: string | undefined;
       
       if (typeof output === 'string') {
-        console.log("String output received, length:", output.length);
+        console.log("String output received, length:", (output as string).length);
         videoUrl = output;
-      } else if (Array.isArray(output) && output.length > 0) {
-        console.log("Array output received, first item:", typeof output[0]);
-        videoUrl = output[0];
-      } else if (output && typeof output === 'object' && 'constructor' in output && output.constructor.name === 'FileOutput') {
+      } else if (Array.isArray(output) && (output as any[]).length > 0) {
+        console.log("Array output received, first item:", typeof (output as any[])[0]);
+        videoUrl = (output as any[])[0];
+      } else if (output && typeof output === 'object' && 'constructor' in output && (output as any).constructor.name === 'FileOutput') {
         console.log("FileOutput detected, treating as ReadableStream...");
         // Handle FileOutput as ReadableStream
         videoUrl = await handleReadableStream(output as unknown as ReadableStream);
