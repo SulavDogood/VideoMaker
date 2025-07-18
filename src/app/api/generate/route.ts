@@ -7,27 +7,35 @@ const replicate = new Replicate({
 });
 
 async function handleReadableStream(stream: ReadableStream): Promise<string> {
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
+  try {
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    
+    // Combine all chunks into a single buffer
+    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const buffer = new Uint8Array(totalLength);
+    let offset = 0;
+    
+    for (const chunk of chunks) {
+      buffer.set(chunk, offset);
+      offset += chunk.length;
+    }
+    
+    // Convert buffer to base64
+    const base64Data = Buffer.from(buffer).toString('base64');
+    console.log("Converted ReadableStream to base64, length:", base64Data.length);
+    
+    return `data:video/mp4;base64,${base64Data}`;
+  } catch (error) {
+    console.error("Error handling ReadableStream:", error);
+    throw error;
   }
-  
-  // Combine all chunks into a single buffer
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const buffer = new Uint8Array(totalLength);
-  let offset = 0;
-  
-  for (const chunk of chunks) {
-    buffer.set(chunk, offset);
-    offset += chunk.length;
-  }
-  
-  // Convert buffer to base64
-  return Buffer.from(buffer).toString('base64');
 }
 
 export async function POST(request: NextRequest) {
@@ -112,23 +120,38 @@ export async function POST(request: NextRequest) {
       );
 
       console.log("Generation complete:", output);
+      console.log("Output type:", typeof output);
+      console.log("Output constructor:", output?.constructor?.name);
       
       // Handle different types of responses
-      let videoUrl: string;
+      let videoUrl: string | undefined;
       
       if (typeof output === 'string') {
+        console.log("String output received, length:", output.length);
         videoUrl = output;
       } else if (Array.isArray(output) && output.length > 0) {
+        console.log("Array output received, first item:", typeof output[0]);
         videoUrl = output[0];
       } else if (output instanceof ReadableStream) {
+        console.log("ReadableStream output received, processing...");
         // Handle ReadableStream response
-        const base64Data = await handleReadableStream(output);
-        videoUrl = `data:video/mp4;base64,${base64Data}`;
+        videoUrl = await handleReadableStream(output);
       } else {
         console.error("Unexpected output format:", output);
+        console.error("Output keys:", Object.keys(output || {}));
         return NextResponse.json({ 
           error: "Unexpected response format from AI model",
           debug: JSON.stringify(output)
+        }, { status: 500 });
+      }
+
+      console.log("Final videoUrl type:", typeof videoUrl);
+      console.log("Final videoUrl length:", typeof videoUrl === 'string' ? videoUrl.length : 'N/A');
+
+      if (!videoUrl) {
+        return NextResponse.json({ 
+          error: "Failed to generate video URL",
+          debug: "videoUrl is undefined"
         }, { status: 500 });
       }
 
